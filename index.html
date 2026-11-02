@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DSOS dan SMO untuk Cloud Task Scheduling</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Newsreader:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef3f6;--surf:#fff;--ink:#14263a;--mut:#51657a;--line:#cdd9e2;--a:#1f8a6b;--b:#c98a10;--c:#7a4e9b;--r:#c8553d;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1c27;--surf:#16283a;--ink:#e6eef5;--mut:#9fb3c6;--line:#2b4157;--a:#4fcf9f;--b:#f0b948;--c:#b794d6;--r:#ef8a72;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:20px/1.5 Newsreader,Georgia,serif;height:100vh;height:100dvh;overflow:hidden}
+h1,h2,button,.f{font-family:"Bricolage Grotesque",system-ui,sans-serif}
+h1{font-size:clamp(34px,6vw,64px);line-height:1.05;margin:0;max-width:16ch}
+h2{font-size:clamp(26px,4vw,38px);line-height:1.1;margin:0}
+p{margin:0;max-width:60ch}
+.s{display:none;height:calc(100% - 56px);overflow:auto;padding:30px 6vw;flex-direction:column;gap:14px;max-width:1100px;margin:0 auto}
+.s.on{display:flex}
+.mut{color:var(--mut);font-size:17px}
+nav{position:fixed;bottom:0;left:0;right:0;height:56px;display:flex;align-items:center;justify-content:center;gap:16px;background:var(--surf);border-top:1px solid var(--line)}
+button{font-size:15px;font-weight:500;border:1px solid var(--line);background:var(--surf);color:var(--ink);padding:8px 14px;border-radius:6px;cursor:pointer}
+button.go{background:var(--a);color:var(--bg);border-color:var(--a)}
+button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:disabled{opacity:.45}
+button:focus-visible{outline:3px solid var(--b);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.cards button{text-align:left;padding:14px;font-size:17px;line-height:1.3}
+.cards .sg{font:700 30px "Bricolage Grotesque";display:block}
+svg{width:100%;height:auto;display:block}
+svg text{font:12px "Bricolage Grotesque",sans-serif;fill:var(--mut)}
+.chip{width:32px;height:32px;display:grid;place-items:center;border-radius:6px;color:#fff;font:600 12px "Bricolage Grotesque"}
+.chips{display:flex;gap:4px}
+.org{display:flex;align-items:center;gap:8px;padding:5px 8px;border:2px solid var(--line);border-radius:8px;background:var(--surf);flex-wrap:wrap}
+.org.xi{border-color:var(--a)}.org.xj{border-color:var(--b)}.org.xb{border-color:var(--c)}
+.tag{width:48px;font:600 13px "Bricolage Grotesque";color:var(--mut)}
+.fv{font:600 15px "Bricolage Grotesque";margin-left:auto}
+.ok{color:var(--a)}.no{color:var(--r)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.two{grid-template-columns:1fr}}
+.big{font:700 28px "Bricolage Grotesque"}
+table{border-collapse:collapse;font-size:17px}
+td,th{padding:6px 14px 6px 0;text-align:left;border-bottom:1px solid var(--line)}
+th{font:500 14px "Bricolage Grotesque";color:var(--mut)}
+</style></head><body>
+
+<section class="s on">
+<h1>Dua algoritma dari alam untuk cloud task scheduling</h1>
+<p class="mut" style="font-size:22px">DSOS meniru simbiosis antar organisme. SMO meniru monyet laba-laba mencari makanan.</p>
+<div class="row"><button class="go" id="goD">Mulai dari DSOS</button><button class="go" id="goS">Mulai dari SMO</button></div>
+<p class="mut" style="margin-top:auto">Sumber DSOS: A. E.-S. Ezugwu &amp; A. O. Adewumi (2017), “Discrete symbiotic organisms search algorithm for travelling salesman problem”, Expert Systems With Applications 87, 70–78.<br>Sumber SMO: M. Kumar et al. (2022), “Experimental performance analysis of cloud resource allocation framework using spider monkey optimization algorithm”, Concurrency and Computation: Practice and Experience, e7469.<br>Navigasi: tombol panah atau tombol di bawah.</p>
+</section>
+
+<section class="s">
+<h2>Inspirasi: hubungan antar makhluk hidup</h2>
+<p class="mut">Organisme di ekosistem bertahan hidup lewat simbiosis. Klik salah satu.</p>
+<div class="cards" id="nat">
+<button data-t="Dua kandidat jadwal saling belajar dan sama-sama bergerak ke solusi terbaik.">
+<span class="sg" style="color:var(--a)">+ / +</span>Mutualism<br><span class="mut">lebah dan bunga</span></button>
+<button data-t="Satu kandidat meniru solusi terbaik, kandidat yang ditiru tidak berubah.">
+<span class="sg" style="color:var(--b)">+ / 0</span>Commensalism<br><span class="mut">remora dan hiu</span></button>
+<button data-t="Salinan yang dirusak (parasit) melawan kandidat lain, dan menggantikannya kalau lebih baik.">
+<span class="sg" style="color:var(--c)">+ / −</span>Parasitism<br><span class="mut">burung kukuk dan inangnya</span></button>
+</div>
+<p class="big" id="natT" style="color:var(--mut)">Di algoritma, ini menjadi apa?</p>
+</section>
+
+<section class="s">
+<h2>Masalah: task mana ke VM mana?</h2>
+<p class="mut">Studi kasus: 8 task (panjang dalam ribu MI) dan 3 VM (kecepatan dalam ribu MIPS). Tujuan: makespan sekecil mungkin.</p>
+<div class="row" id="tk"></div>
+<div class="row"><button id="b3rr" aria-pressed="true">Round Robin</button><button id="b3rd" aria-pressed="false">Urutan acak</button>
+<span class="big" id="m3"></span></div>
+<svg id="g3" role="img" aria-label="Gantt chart studi kasus"></svg>
+<p class="mut">Kemungkinan jadwal: 3<sup>8</sup> = 6.561. Untuk 100 task dan 10 VM: 10<sup>100</sup>. Mustahil dicoba satu per satu.</p>
+</section>
+
+<section class="s">
+<h2>Cara kerja, selangkah demi selangkah</h2>
+<p class="mut">Setiap organisme adalah urutan task; angka di kanan adalah makespan (detik). Klik “Langkah berikutnya”.</p>
+<div class="row"><button class="go" id="nx">Langkah berikutnya</button><button id="auto" aria-pressed="false">Otomatis</button><button id="rs">Ulang</button><span class="f" id="ph" style="color:var(--mut)"></span></div>
+<div class="two"><div id="pop" style="display:grid;gap:6px"></div>
+<div><div class="f mut" style="margin-bottom:6px">Kandidat baru</div><div id="cand" style="display:grid;gap:6px"></div></div></div>
+</section>
+
+<section class="s">
+<h2>Simulasi: masalah, proses, solusi</h2>
+<p class="mut">40 task, 4 VM, 150 iterasi. Gantt menunjukkan jadwal terbaik saat ini.</p>
+<div class="row"><button class="go" id="run">Jalankan DSOS</button><span class="big" id="st">–</span></div>
+<svg id="gs" role="img" aria-label="Gantt chart hasil DSOS"></svg>
+<svg id="cs" viewBox="0 0 900 170" role="img" aria-label="Grafik konvergensi"></svg>
+</section>
+
+<section class="s">
+<h2>Dari TSP ke cloud task scheduling</h2>
+<table><tr><th>Di paper</th><th>Di cloud</th></tr>
+<tr><td>Kota</td><td>Task</td></tr><tr><td>Tur</td><td>Urutan task</td></tr><tr><td>Panjang tur</td><td>Makespan</td></tr></table>
+<p>Hasil paper: mencapai solusi terbaik yang diketahui pada eil51 (426) dan berlin52 (7542), dan mengungguli SOS biasa di 15 instance TSPLIB.</p>
+<p class="mut">Operator: swap 0,2, inversion 0,5, insertion 0,3. Populasi 50, 1000 iterasi.</p>
+<p class="mut" style="margin-top:auto">Sumber: Ezugwu &amp; Adewumi (2017), Expert Systems With Applications 87, 70–78. doi:10.1016/j.eswa.2017.06.007</p>
+</section>
+
+
+<section class="s">
+<h2>Inspirasi SMO: monyet laba-laba</h2>
+<p class="mut">Monyet laba-laba mencari makanan dalam kelompok. Klik salah satu.</p>
+<div class="cards" id="nat2">
+<button data-t="Anggota kelompok mendekati pemimpinnya. Pemimpin memberi arah pencarian lokal."><span class="sg" style="color:var(--a)">1</span>Local leader<br><span class="mut">pemimpin tiap kelompok</span></button>
+<button data-t="Monyet yang bagus ditarik ke pemimpin global, sehingga solusi terbaik dimanfaatkan."><span class="sg" style="color:var(--b)">2</span>Global leader<br><span class="mut">pemimpin seluruh kawanan</span></button>
+<button data-t="Makanan langka: kelompok pecah supaya menjelajah lebih luas (fission). Lalu bergabung lagi (fusion)."><span class="sg" style="color:var(--c)">3</span>Fission dan fusion<br><span class="mut">pecah dan bergabung</span></button>
+</div>
+<p class="big" id="nat2T" style="color:var(--mut)">Di algoritma, ini menjadi apa?</p>
+</section>
+
+<section class="s">
+<h2>SMO selangkah demi selangkah</h2>
+<p class="mut">Titik adalah monyet, warna adalah kelompok, garis adalah perpindahan. Medan: banyak lembah, satu paling dalam di tengah.</p>
+<div class="row"><button class="go" id="mx">Fase berikutnya</button><button id="mauto" aria-pressed="false">Otomatis</button><button id="mrs">Ulang</button></div>
+<canvas id="cv" width="520" height="520" role="img" aria-label="Posisi monyet pada medan pencarian" style="width:100%;max-width:480px;aspect-ratio:1;border:1px solid var(--line);border-radius:6px"></canvas>
+<p class="f mut" id="mst" aria-live="polite"></p>
+<p class="mut">Lingkaran bertepi tebal: local leader. Belah ketupat: global leader.</p>
+</section>
+
+<section class="s">
+<h2>SMO untuk cloud: monyet adalah jadwal</h2>
+<p class="mut">Satu monyet adalah vektor: tiap angka adalah nomor VM untuk task tersebut (contoh dari paper, 10 task dan 5 VM).</p>
+<div class="chips" id="mvec"></div>
+<div class="row"><button class="go" id="mrun">Jalankan SMO dan ESMO</button><span class="f mut" id="mtx"></span></div>
+<svg id="mc" viewBox="0 0 900 170" role="img" aria-label="Grafik konvergensi SMO dan ESMO"></svg>
+<svg id="mg" role="img" aria-label="Gantt chart jadwal ESMO"></svg>
+<table><thead><tr><th>Metode</th><th>Fitness</th><th>Makespan (detik)</th><th>Biaya ($)</th><th>Energi (Wh)</th></tr></thead><tbody id="mtb"></tbody></table>
+</section>
+
+<section class="s">
+<h2>Hasil SMO di paper</h2>
+<table><tr><th>SMO</th><th>Cloud</th></tr>
+<tr><td>Monyet</td><td>Satu jadwal task ke VM</td></tr><tr><td>Dimensi</td><td>Jumlah task</td></tr><tr><td>Makanan terbaik</td><td>Fitness: waktu, biaya, energi</td></tr></table>
+<p>Di CloudSim (1000 VM, 3500 sampai 6000 task), makespan rata-rata Enhanced SMO turun hingga 18,44% sampai 38,12% dibanding pembanding, dan biaya turun hingga 12,41% sampai 20,91%.</p>
+<p class="mut">Pembanding: SMO standar, PSO, GSA, ABC, IMMLB.</p>
+<p class="mut" style="margin-top:auto">Sumber: M. Kumar, K. Dubey, S. Singh, J. K. Samriya, S. S. Gill (2022), Concurrency and Computation: Practice and Experience, e7469. doi:10.1002/cpe.7469</p>
+</section>
+
+<nav><button id="pv">Sebelumnya</button><span class="f mut" id="ct"></span><button id="nxs" class="go">Berikutnya</button></nav>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+let R=rng(3);const ri=n=>Math.floor(R()*n),two=n=>{let i=ri(n),j=ri(n-1);if(j>=i)j++;return i<j?[i,j]:[j,i]};
+const shuf=n=>{const a=[...Array(n).keys()];for(let i=n-1;i>0;i--){const j=ri(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
+function mu(p){const k=['swap','inversion','insertion'][R()<.2?0:R()<.625?1:2],q=p.slice(),[i,j]=two(q.length);
+ if(k==='swap')[q[i],q[j]]=[q[j],q[i]];else if(k==='inversion'){const s=q.slice(i,j+1).reverse();q.splice(i,s.length,...s)}else{const c=q.splice(i,1)[0];q.splice(j,0,c)}return[q,k]}
+function pull(x,t){const[i,j]=two(x.length),seg=t.slice(i,j+1),s=new Set(seg),r=x.filter(c=>!s.has(c));return r.slice(0,i).concat(seg,r.slice(i))}
+function dec(p,L,V){const f=V.map(()=>0),rows=V.map(()=>[]);for(const t of p){let k=0,b=1e9;for(let v=0;v<V.length;v++){const x=f[v]+L[t]/V[v];if(x<b){b=x;k=v}}rows[k].push({t,s:f[k],e:b});f[k]=b}return{rows,ms:Math.max(...f)}}
+const rr=(n,L,V)=>{const f=V.map(()=>0),rows=V.map(()=>[]);for(let t=0;t<n;t++){const k=t%V.length,e=f[k]+L[t]/V[k];rows[k].push({t,s:f[k],e});f[k]=e}return{rows,ms:Math.max(...f)}};
+const col=t=>`hsl(${(t*47)%360} 50% 42%)`,chips=p=>`<div class="chips">${p.map(t=>`<span class="chip" style="background:${col(t)}">T${t+1}</span>`).join('')}</div>`;
+function gantt(el,pl,V,sc){const W=900,rh=30,pl0=46,k=sc?(W-pl0-10)/sc:1;let s='';
+ pl.rows.forEach((r,v)=>{const y=v*rh+4;s+=`<text x="0" y="${y+17}">VM${v+1}</text>`;r.forEach(c=>{const w=Math.max(1,(c.e-c.s)*k-1);s+=`<rect x="${pl0+c.s*k}" y="${y}" width="${w}" height="${rh-6}" rx="3" fill="${col(c.t)}"><title>T${c.t+1}: ${c.s.toFixed(1)} sampai ${c.e.toFixed(1)} s</title></rect>`+(w>26?`<text x="${pl0+c.s*k+w/2}" y="${y+17}" text-anchor="middle" style="fill:#fff">T${c.t+1}</text>`:'')})});
+ s+=`<line x1="${pl0+pl.ms*k}" x2="${pl0+pl.ms*k}" y1="0" y2="${V.length*rh}" stroke="var(--r)" stroke-width="2" stroke-dasharray="5 4"/>`;
+ el.setAttribute('viewBox',`0 0 ${W} ${V.length*rh+4}`);el.innerHTML=s}
+
+// navigasi
+const SL=$$('.s');let cur=0;
+function show(n){cur=Math.max(0,Math.min(SL.length-1,n));SL.forEach((s,i)=>s.classList.toggle('on',i===cur));$('#ct').textContent=`${cur+1} / ${SL.length}`+(cur?(cur<6?' (DSOS)':' (SMO)'):'');$('#pv').disabled=!cur;$('#nxs').disabled=cur===SL.length-1;history.replaceState(null,'','#'+(cur+1))}
+$('#pv').onclick=()=>show(cur-1);$('#nxs').onclick=()=>show(cur+1);
+addEventListener('keydown',e=>{if(e.key==='ArrowRight')show(cur+1);if(e.key==='ArrowLeft')show(cur-1)});
+
+// slide 2
+$$('#nat button').forEach(b=>b.onclick=()=>{$$('#nat button').forEach(x=>x.setAttribute('aria-pressed',x===b));$('#natT').textContent=b.dataset.t;$('#natT').style.color='var(--ink)'});
+
+// studi kasus
+const L=[12,30,9,21,15,24,6,18],V=[3,5,8];let mode3='rr';
+$('#tk').innerHTML=L.map((l,t)=>`<span class="chip" style="background:${col(t)};width:auto;padding:0 10px">T${t+1}: ${l}</span>`).join('')+V.map((v,i)=>`<span class="f mut" style="padding:0 6px">VM${i+1}: ${v}</span>`).join('');
+function d3(){const p=mode3==='rr'?rr(8,L,V):dec(shuf(8),L,V);gantt($('#g3'),p,V,16);$('#m3').textContent=p.ms.toFixed(1)+' detik'}
+$('#b3rr').onclick=()=>{mode3='rr';$('#b3rr').setAttribute('aria-pressed',true);$('#b3rd').setAttribute('aria-pressed',false);d3()};
+$('#b3rd').onclick=()=>{mode3='rd';$('#b3rd').setAttribute('aria-pressed',true);$('#b3rr').setAttribute('aria-pressed',false);d3()};
+d3();
+
+// langkah demi langkah
+const NP=6,fitf=p=>dec(p,L,V).ms;let pop,fit,S,timer=null;
+const bestI=()=>fit.indexOf(Math.min(...fit));
+function reset(){R=rng(3);pop=Array.from({length:NP},()=>shuf(8));fit=pop.map(fitf);S={i:0,ph:0};$('#cand').innerHTML='';$('#ph').textContent='Populasi awal acak';draw({})}
+function draw(h){const b=bestI();$('#pop').innerHTML=pop.map((p,k)=>`<div class="org ${k===h.i?'xi':''} ${k===h.j?'xj':''}"><span class="tag" style="${k===b?'color:var(--c)':''}">${k===h.i?'xi':k===h.j?'xj':''}${k===b?' best':''}</span>${chips(p)}<span class="fv">${fit[k].toFixed(1)}</span></div>`).join('')}
+const NM=['Mutualism','Commensalism','Parasitism'],DS=['xi dan xj ditarik ke xbest, lalu dimutasi','xi meniru xj atau xbest','parasit dari xi melawan xj'];
+function step(){const{i,ph}=S;let j=ri(NP);while(j===i)j=ri(NP);const b=bestI(),out=[];
+ const tr=(k,q,l)=>{const f=fitf(q),acc=f<fit[k];out.push({l,q,f,o:fit[k],acc});if(acc){pop[k]=q;fit[k]=f}};
+ if(ph===0){let[q,k]=mu(pull(pop[i],pop[b]));tr(i,q,'xi baru ('+k+')');[q,k]=mu(pull(pop[j],pop[b]));tr(j,q,'xj baru ('+k+')')}
+ else if(ph===1)tr(i,pull(pop[i],R()<.5?pop[j]:pop[b]),'xi baru');
+ else{let q=pop[i];for(let r=0;r<2;r++)q=mu(q)[0];tr(j,q,'parasit vs xj')}
+ $('#ph').textContent=`Organisme ${i+1}, ${NM[ph]}: ${DS[ph]}`;
+ $('#cand').innerHTML=out.map(c=>`<div class="org"><span class="tag">${c.l.split(' ')[0]}${c.l.includes('(')?'':''}</span>${chips(c.q)}<span class="fv ${c.acc?'ok':'no'}">${c.f.toFixed(1)} ${c.acc?'diterima':'ditolak'}</span></div>`).join('');
+ draw({i,j});S.ph=(ph+1)%3;if(!S.ph)S.i=(i+1)%NP}
+$('#nx').onclick=step;$('#rs').onclick=reset;
+$('#auto').onclick=e=>{if(timer){clearInterval(timer);timer=null}else timer=setInterval(step,1100);e.target.setAttribute('aria-pressed',!!timer)};
+reset();
+
+// simulasi
+function* dsos(n,fit,N,it){const E=Array.from({length:N},()=>shuf(n)),F=E.map(fit);let bi=F.indexOf(Math.min(...F)),B=E[bi],BF=F[bi];
+ const tr=(k,c)=>{const f=fit(c);if(f<F[k]){E[k]=c;F[k]=f;if(f<BF){BF=f;B=c}}};
+ for(let t=0;t<it;t++){for(let i=0;i<N;i++){let j=ri(N);while(j===i)j=ri(N);tr(i,mu(pull(E[i],B))[0]);tr(j,mu(pull(E[j],B))[0]);tr(i,pull(E[i],R()<.5?E[j]:B));let pv=E[i];for(let r=0;r<4;r++)pv=mu(pv)[0];tr(j,pv)}yield{BF,B}}}
+let job=0;
+$('#run').onclick=()=>{const id=++job,n=40,r2=rng(9),L2=Array.from({length:n},()=>5+Math.floor(r2()*26)),V2=[3,5,8,10],f=p=>dec(p,L2,V2).ms;R=rng(7);
+ const base=rr(n,L2,V2),g=dsos(n,f,50,150),h=[];let sc=base.ms*1.02;$('#run').disabled=true;
+ (function tick(){if(id!==job)return;let r;for(let i=0;i<3;i++){r=g.next();if(r.done)break;h.push(r.value.BF)}
+  const b=dec(r.value?r.value.B:[],L2,V2);
+  if(r.value){gantt($('#gs'),b,V2,sc);const lo=Math.min(...h)*.9;let s=`<line x1="40" x2="890" y1="${150*(1-(base.ms-lo)/(base.ms*1.02-lo))+8}" y2="${150*(1-(base.ms-lo)/(base.ms*1.02-lo))+8}" stroke="var(--r)" stroke-dasharray="6 5" stroke-width="2"/><text x="886" y="14" text-anchor="end" style="fill:var(--r)">Round Robin ${base.ms.toFixed(1)} s</text>`;
+   s+=`<polyline fill="none" stroke="var(--a)" stroke-width="3" points="${h.map((v,i)=>(40+850*i/149)+','+(150*(1-(v-lo)/(base.ms*1.02-lo))+8)).join(' ')}"/><text x="40" y="166">iterasi 1</text><text x="890" y="166" text-anchor="end">150</text>`;$('#cs').innerHTML=s;
+   $('#st').textContent=`${base.ms.toFixed(1)} s → ${h[h.length-1].toFixed(1)} s (−${((1-h[h.length-1]/base.ms)*100).toFixed(0)}%)`}
+  if(h.length<150)requestAnimationFrame(tick);else $('#run').disabled=false})()};
+{const r2=rng(9),L2=Array.from({length:40},()=>5+Math.floor(r2()*26)),b=rr(40,L2,[3,5,8,10]);gantt($('#gs'),b,[3,5,8,10],b.ms*1.02);$('#st').textContent='Round Robin: '+b.ms.toFixed(1)+' s'}
+
+// ===== SMO =====
+const PD=['Local leader: kelompok mendekati pemimpinnya','Global leader: monyet bagus mendekati pemimpin global','Leader learning: pemimpin diperbarui','Local leader decision: kelompok macet diacak ulang','Global leader decision: pecah (fission) atau gabung (fusion)'];
+function* smoG(o){const{f,D,lo,hi,N=30,MG=4,pr=.5,enh=false,LLim=15,GLim=N>>1,seed=1}=o,R=rng(seed),U=(a,b)=>a+(b-a)*R(),cl=v=>Math.min(hi,Math.max(lo,v)),all=[...Array(N).keys()],X=all.map(()=>Array.from({length:D},()=>U(lo,hi))),F=X.map(f),st=Array(N).fill(0);
+ const split=g=>Array.from({length:g},(_,k)=>all.filter(i=>i%g===k)),bi=g=>g.reduce((a,b)=>F[b]<F[a]?b:a),pick=(g,i)=>{const c=g.filter(q=>q!==i);return c.length?c[(R()*c.length)|0]:i};
+ let G=split(1),GL=bi(all),LL=G.map(bi),gc=0,lc=[0],mv=[];
+ const gr=(i,y)=>{const fy=f(y);if(fy<F[i]){mv.push({a:X[i].slice(),b:y});X[i]=y;F[i]=fy;st[i]=0}else st[i]++};
+ const out=p=>{const r={ph:p,t:PD[p],X,G,LL,GL,best:F[GL],mv};mv=[];return r};
+ for(;;){
+  G.forEach((g,k)=>{const ll=X[LL[k]];g.forEach(i=>{const x=X[i],y=x.slice();for(let j=0;j<D;j++)if(R()>=pr){
+   if(enh&&st[i]>=3){const e=(x[j]+U(lo,hi))/2;let s=0;for(const q of g)s+=x[j]-X[q][j];y[j]=cl(x[j]+R()*(ll[j]-e)+R()*s/g.length)}
+   else{const r=pick(g,i);y[j]=cl(x[j]+R()*(ll[j]-x[j])+U(-1,1)*(X[r][j]-x[j]))}}gr(i,y)})});yield out(0);
+  const fm=Math.max(...F.map(v=>1/(1+v)));
+  for(const i of all)if(R()<.9*(1/(1+F[i]))/fm+.1){const g=G.find(h=>h.includes(i)),j=(R()*D)|0,r=pick(g,i),y=X[i].slice();y[j]=cl(X[i][j]+R()*(X[GL][j]-X[i][j])+U(-1,1)*(X[r][j]-X[i][j]));gr(i,y)}yield out(1);
+  const c=bi(all);if(F[c]<F[GL]){GL=c;gc=0}else gc++;G.forEach((g,k)=>{const c=bi(g);if(F[c]<F[LL[k]]){LL[k]=c;lc[k]=0}else lc[k]++});yield out(2);
+  G.forEach((g,k)=>{if(lc[k]>LLim){lc[k]=0;g.forEach(i=>{if(i===GL)return;const y=X[i].map((v,j)=>R()>=pr?U(lo,hi):cl(v+R()*(X[GL][j]-v)+R()*(v-X[LL[k]][j])));X[i]=y;F[i]=f(y)})}});yield out(3);
+  if(gc>GLim){gc=0;G=G.length<MG?split(G.length+1):split(1);LL=G.map(bi);lc=G.map(()=>0)}yield out(4)}}
+$$('#nat2 button').forEach(b=>b.onclick=()=>{$$('#nat2 button').forEach(x=>x.setAttribute('aria-pressed',x===b));$('#nat2T').textContent=b.dataset.t;$('#nat2T').style.color='var(--ink)'});
+
+// langkah 2D
+const BD=5.12,rast=p=>20+p.reduce((s,x)=>s+x*x-10*Math.cos(2*Math.PI*x),0),cvs=$('#cv'),cx=cvs.getContext('2d'),SZ=cvs.width,px=v=>(v+BD)/(2*BD)*SZ,css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let heat,sg,sl,mt=null;
+function mkHeat(){heat=document.createElement('canvas');heat.width=heat.height=80;const h=heat.getContext('2d'),k=css('--ink'),c=[1,3,5].map(i=>parseInt(k.substr(i,2),16));for(let i=0;i<80;i++)for(let j=0;j<80;j++){h.fillStyle=`rgba(${c},${.03+.2*rast([(i+.5)/80*2*BD-BD,(j+.5)/80*2*BD-BD])/80})`;h.fillRect(i,j,1,1)}}
+function drawS(){if(!heat)mkHeat();cx.clearRect(0,0,SZ,SZ);cx.drawImage(heat,0,0,SZ,SZ);if(!sl)return;const pal=[css('--a'),css('--b'),css('--c'),css('--r')],ink=css('--ink');
+ cx.lineWidth=2;cx.strokeStyle=ink;sl.mv.forEach(m=>{cx.beginPath();cx.moveTo(px(m.a[0]),px(m.a[1]));cx.lineTo(px(m.b[0]),px(m.b[1]));cx.stroke()});
+ sl.G.forEach((g,k)=>g.forEach(i=>{cx.beginPath();cx.arc(px(sl.X[i][0]),px(sl.X[i][1]),7,0,7);cx.fillStyle=pal[k%4];cx.fill();if(i===sl.LL[k]){cx.lineWidth=3;cx.strokeStyle=ink;cx.stroke()}}));
+ const x=px(sl.X[sl.GL][0]),y=px(sl.X[sl.GL][1]);cx.beginPath();cx.moveTo(x,y-13);cx.lineTo(x+13,y);cx.lineTo(x,y+13);cx.lineTo(x-13,y);cx.closePath();cx.fillStyle=css('--surf');cx.fill();cx.lineWidth=3;cx.strokeStyle=ink;cx.stroke();
+ $('#mst').textContent=`${sl.t}. ${sl.G.length} kelompok, nilai terbaik ${sl.best.toFixed(3)} (optimum 0)`}
+function nxt(){sl=sg.next().value;drawS()}
+function rs2(){clearInterval(mt);mt=null;$('#mauto').setAttribute('aria-pressed',false);sg=smoG({f:rast,D:2,lo:-BD,hi:BD,N:30,MG:4,pr:.4,LLim:6,GLim:5,seed:4});sl=null;nxt()}
+$('#mx').onclick=nxt;$('#mrs').onclick=rs2;
+$('#mauto').onclick=e=>{if(mt){clearInterval(mt);mt=null}else mt=setInterval(nxt,550);e.target.setAttribute('aria-pressed',!!mt)};
+rs2();
+
+// cloud SMO vs ESMO
+function mkP(seed){const r=rng(seed),n=40,m=5,L=Array.from({length:n},()=>200000+Math.floor(r()*300000)),V=[200,400,600,800,1000],P=V.map(v=>.102*Math.pow(v/1000,1.3));
+ const raw=a=>{const b=Array(m).fill(0);a.forEach((v,t)=>b[v]+=L[t]/V[v]);const ms=Math.max(...b);return{b,ms,c:b.reduce((s,x,v)=>s+x/3600*P[v],0),e:b.reduce((s,x)=>s+(70+130*x/ms)*ms/3600,0)}};
+ const vm=p=>p.map(x=>Math.min(m-1,Math.floor(x))),base=raw(Array.from({length:n},(_,t)=>t%m));
+ return{n,m,L,V,raw,vm,base,f:p=>{const q=raw(vm(p));return .5*q.ms/base.ms+.3*q.c/base.c+.2*q.e/base.e}}}
+const rowsOf=(a,p)=>{const f=p.V.map(()=>0),rows=p.V.map(()=>[]);a.forEach((v,t)=>{const e=f[v]+p.L[t]/p.V[v];rows[v].push({t,s:f[v],e});f[v]=e});return{rows,ms:Math.max(...f)}};
+$('#mvec').innerHTML=[2,3,4,2,2,1,3,0,4,0].map(v=>`<span class="chip" style="background:${col(v*2)}">${v}</span>`).join('');
+const p0=mkP(11);gantt($('#mg'),rr(p0.n,p0.L,p0.V),p0.V,p0.base.ms*1.02);$('#mtx').textContent='Jadwal awal: Round Robin';
+let job2=0;
+$('#mrun').onclick=()=>{const id=++job2,p=mkP(11),o={f:p.f,D:p.n,lo:0,hi:p.m-1e-9,N:50,MG:5,pr:.5,LLim:20,seed:5},A=smoG(o),E=smoG({...o,enh:true}),h=[[],[]];let ra,re;$('#mrun').disabled=true;
+ const it=g=>{let r;do r=g.next().value;while(r.ph<4);return r};
+ (function tick(){if(id!==job2)return;for(let i=0;i<3;i++){ra=it(A);re=it(E);h[0].push(ra.best);h[1].push(re.best)}
+  const lo=Math.min(...h[0],...h[1])*.95,Y=v=>8+150*(1-(v-lo)/(1.05-lo));
+  let s=`<line x1="40" x2="890" y1="${Y(1)}" y2="${Y(1)}" stroke="var(--r)" stroke-dasharray="6 5" stroke-width="2"/><text x="886" y="${Y(1)-5}" text-anchor="end" style="fill:var(--r)">Round Robin</text>`;
+  [['SMO standar','var(--b)'],['Enhanced SMO','var(--a)']].forEach(([n,c],k)=>{s+=`<polyline fill="none" stroke="${c}" stroke-width="3" points="${h[k].map((v,i)=>(40+850*i/199)+','+Y(v)).join(' ')}"/><text x="50" y="${20+k*15}" style="fill:${c}">${n}</text>`});
+  $('#mc').innerHTML=s;gantt($('#mg'),rowsOf(p.vm(re.X[re.GL]),p),p.V,p.base.ms*1.02);$('#mtx').textContent='Jadwal terbaik Enhanced SMO';
+  if(h[0].length<200){requestAnimationFrame(tick);return}
+  $('#mrun').disabled=false;const row=(n,q,f)=>`<tr><td>${n}</td><td>${f.toFixed(4)}</td><td>${q.ms.toFixed(0)}</td><td>${q.c.toFixed(3)}</td><td>${q.e.toFixed(0)}</td></tr>`;
+  $('#mtb').innerHTML=row('Round Robin',p.base,1)+row('SMO standar',p.raw(p.vm(ra.X[ra.GL])),ra.best)+row('Enhanced SMO',p.raw(p.vm(re.X[re.GL])),re.best)})()};
+$('#goD').onclick=()=>show(1);$('#goS').onclick=()=>show(6);
+
+show((parseInt(location.hash.slice(1))||1)-1);
+</script></body></html>
