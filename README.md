@@ -5,7 +5,7 @@ Slide interaktif (satu file HTML) untuk demo week 10 matakuliah Strategi Komputa
 - **DSOS** (Discrete Symbiotic Organisms Search): meniru simbiosis antar organisme.
 - **SMO** (Spider Monkey Optimization) dan **Enhanced SMO**: meniru monyet laba-laba mencari makanan.
 
-Demo online: `https://<username>.github.io/<nama-repo>/`
+Demo online: `(https://ivansyrfdn.github.io/Meta-Heuristik-Algorithm/)`
 
 ## Isi slide
 
