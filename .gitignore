@@ -1,0 +1,25 @@
+# Hasil build Maven
+target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+nbproject/
+
+# File kompilasi dan log
+*.class
+*.log
+hs_err_pid*
+
+# File sistem
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Cadangan editor
+*~
+*.swp

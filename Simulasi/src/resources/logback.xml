@@ -1,0 +1,7 @@
+<configuration>
+  <!-- Hanya warning dan error yang tampil. Hapus file ini untuk melihat log INFO lengkap CloudSim Plus. -->
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder><pattern>%-5level %msg%n</pattern></encoder>
+  </appender>
+  <root level="WARN"><appender-ref ref="STDOUT"/></root>
+</configuration>
