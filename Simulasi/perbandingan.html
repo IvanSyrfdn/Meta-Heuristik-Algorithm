@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Perbandingan Round Robin, DSOS, SMO</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Newsreader:ital,wght@0,400;0,600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef3f6;--surf:#fff;--ink:#14263a;--mut:#51657a;--line:#cdd9e2;--a:#1f8a6b;--b:#b9741a;--c:#7a4e9b;--r:#c8553d;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1c27;--surf:#16283a;--ink:#e6eef5;--mut:#9fb3c6;--line:#2b4157;--a:#4fcf9f;--b:#f0b948;--c:#b794d6;--r:#ef8a72;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.55 Newsreader,Georgia,serif}
+main{max-width:1000px;margin:0 auto;padding:36px 20px 70px}
+h1,h2,button,th,.f{font-family:"Bricolage Grotesque",system-ui,sans-serif}
+h1{font-size:clamp(28px,5vw,42px);line-height:1.1;margin:0 0 8px}
+h2{font-size:24px;margin:40px 0 10px}
+p{margin:0 0 12px;max-width:66ch}
+.mut{color:var(--mut);font-size:16px}
+.panel{background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:18px;margin-top:16px}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:22px;text-align:center}
+.drop.on{border-color:var(--a)}
+button{font-size:15px;font-weight:500;border:1px solid var(--line);background:var(--surf);color:var(--ink);padding:8px 14px;border-radius:6px;cursor:pointer}
+button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--b);outline-offset:2px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+svg{width:100%;height:auto;display:block}
+svg text{font:12px "Bricolage Grotesque",sans-serif;fill:var(--mut)}
+.leg{display:flex;gap:16px;flex-wrap:wrap;font:500 14px "Bricolage Grotesque";margin:8px 0}
+.leg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+table{border-collapse:collapse;width:100%;font-size:16px}
+th,td{text-align:left;padding:8px 10px 8px 0;border-bottom:1px solid var(--line)}
+th{font-size:13px;color:var(--mut);font-weight:500}
+td.n{font-variant-numeric:tabular-nums}
+.hide{display:none}
+</style></head><body><main>
+<h1>Perbandingan Round Robin, DSOS, SMO, dan Enhanced SMO</h1>
+<p class="mut">Hasil simulasi CloudSim Plus: 1 datacenter, 3 host, 8 VM per host, beban kerja dataset GoCJ.</p>
+
+<div class="panel" id="loader">
+<div class="drop" id="drop"><p style="margin:0 auto 10px">Pilih berkas <b>hasil.json</b> yang dibuat oleh program Java, atau tarik berkasnya ke sini.</p>
+<input type="file" id="file" accept=".json,application/json" aria-label="Pilih berkas hasil.json"></div>
+<p class="mut" id="msg" style="margin:10px 0 0" aria-live="polite"></p>
+</div>
+
+<div id="out" class="hide">
+<p class="mut" id="info"></p>
+<h2>Perbandingan metrik</h2>
+<div class="panel">
+<div class="tabs" id="tabs" role="group" aria-label="Pilih metrik"></div>
+<svg id="bars" role="img" aria-label="Diagram batang perbandingan metrik"></svg>
+<div class="leg" id="leg"></div>
+<p class="mut" style="margin:6px 0 0">Batang: rata-rata dari semua jalan. Garis tipis: nilai terkecil sampai terbesar.</p>
+</div>
+<h2>Konvergensi fitness</h2>
+<div class="panel">
+<svg id="conv" role="img" aria-label="Grafik konvergensi fitness per iterasi"></svg>
+<p class="mut" style="margin:6px 0 0">Fitness dinormalisasi terhadap Round Robin (1,0), makin kecil makin baik. Garis: rata-rata dari semua jalan.</p>
+</div>
+<h2>Tabel</h2>
+<div class="panel" style="overflow-x:auto"><table><thead><tr><th>Metode</th><th>Makespan (s)</th><th>Terbaik (s)</th><th>vs Round Robin</th><th>Biaya ($)</th><th>Energi (Wh)</th><th>Waktu algoritma</th><th>Jalan</th></tr></thead><tbody id="tb"></tbody></table></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const COL={'Round Robin':'var(--r)','DSOS':'var(--a)','SMO':'var(--b)','Enhanced SMO':'var(--c)'},col=n=>COL[n]||'var(--ink)';
+const MET={sim:{t:'Makespan (detik)',d:1},cost:{t:'Biaya ($)',d:3},energy:{t:'Energi (Wh)',d:1},ms:{t:'Waktu algoritma (ms)',d:0}};
+const mean=a=>a.reduce((s,x)=>s+x,0)/a.length,std=a=>{const m=mean(a);return Math.sqrt(mean(a.map(x=>(x-m)**2)))};
+const fmt=(v,d=1)=>v.toLocaleString('id-ID',{minimumFractionDigits:d,maximumFractionDigits:d});
+let D,cur='sim';
+
+function vals(a,k){return a.runs.map(r=>r[k])}
+function load(o){
+ if(!o||!Array.isArray(o.algorithms)||!o.algorithms.length)throw new Error('format tidak dikenali');
+ D=o;$('#out').classList.remove('hide');$('#msg').textContent='Data dimuat.';
+ $('#info').textContent=`Dataset ${o.dataset}, ${o.jobs} job, ${o.vms} VM, ${o.iterations} iterasi, ${o.algorithms[1]?o.algorithms[1].runs.length:1} jalan per algoritma.`;
+ $('#leg').innerHTML=o.algorithms.map(a=>`<span><i style="background:${col(a.name)}"></i>${a.name}</span>`).join('');
+ $('#tabs').innerHTML=Object.keys(MET).map(k=>`<button data-k="${k}" aria-pressed="${k===cur}">${MET[k].t}</button>`).join('');
+ document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('#tabs button').forEach(x=>x.setAttribute('aria-pressed',x===b));bars()});
+ bars();conv();table();
+}
+function bars(){
+ const A=D.algorithms,k=cur,d=MET[k].d,W=900,H=300,pl=60,pb=44,pt=14,rr=mean(vals(A[0],k)),
+  st=A.map(a=>{const v=vals(a,k);return{n:a.name,m:mean(v),lo:Math.min(...v),hi:Math.max(...v)}}),
+  mx=Math.max(...st.map(s=>s.hi))*1.12||1,Y=v=>pt+(H-pt-pb)*(1-v/mx),bw=(W-pl-20)/st.length;
+ let s='';for(let g=0;g<=4;g++){const v=mx*g/4;s+=`<line x1="${pl}" x2="${W-10}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${Y(v)+4}" text-anchor="end">${fmt(v,d>1?1:d)}</text>`}
+ st.forEach((x,i)=>{const cx=pl+bw*i+bw/2,w=bw*.5,imp=k==='ms'||i===0?'':`${(1-x.m/rr)*100>=0?'-':'+'}${fmt(Math.abs(1-x.m/rr)*100,1)}%`;
+  s+=`<rect x="${cx-w/2}" y="${Y(x.m)}" width="${w}" height="${H-pb-Y(x.m)}" rx="3" fill="${col(x.n)}"><title>${x.n}: ${fmt(x.m,d)} (min ${fmt(x.lo,d)}, maks ${fmt(x.hi,d)})</title></rect>
+  <line x1="${cx}" x2="${cx}" y1="${Y(x.lo)}" y2="${Y(x.hi)}" stroke="var(--ink)" stroke-width="2"/>
+  <text x="${cx}" y="${Y(x.hi)-6}" text-anchor="middle" style="fill:var(--ink);font-weight:600">${fmt(x.m,d)}</text>
+  <text x="${cx}" y="${H-pb+16}" text-anchor="middle" style="fill:var(--ink)">${x.n}</text>
+  <text x="${cx}" y="${H-pb+32}" text-anchor="middle">${imp?imp+' vs RR':''}</text>`});
+ $('#bars').setAttribute('viewBox',`0 0 ${W} ${H}`);$('#bars').innerHTML=s}
+function conv(){
+ const W=900,H=280,pl=50,pb=26,pt=10,L=D.algorithms.filter(a=>a.runs[0].history.length),n=L.length?L[0].runs[0].history.length:0;
+ if(!n){$('#conv').innerHTML='';return}
+ const avg=a=>Array.from({length:n},(_,i)=>mean(a.runs.map(r=>r.history[i]))),H2=L.map(a=>({n:a.name,v:avg(a)})),
+  rr=mean(vals(D.algorithms[0],'fitness')),all=H2.flatMap(h=>h.v).concat(rr),lo=Math.min(...all)*.95,hi=Math.max(...all)*1.04,
+  X=i=>pl+(W-pl-10)*i/Math.max(1,n-1),Y=v=>pt+(H-pt-pb)*(1-(v-lo)/(hi-lo));
+ let s='';for(let g=0;g<=4;g++){const v=lo+(hi-lo)*g/4;s+=`<line x1="${pl}" x2="${W-10}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${Y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
+ s+=`<line x1="${pl}" x2="${W-10}" y1="${Y(rr)}" y2="${Y(rr)}" stroke="var(--r)" stroke-width="2" stroke-dasharray="6 5"/><text x="${W-14}" y="${Y(rr)-5}" text-anchor="end" style="fill:var(--r)">Round Robin</text>`;
+ H2.forEach(h=>{s+=`<polyline fill="none" stroke="${col(h.n)}" stroke-width="3" points="${h.v.map((v,i)=>X(i)+','+Y(v)).join(' ')}"/>`});
+ s+=`<text x="${pl}" y="${H-6}">iterasi 1</text><text x="${W-10}" y="${H-6}" text-anchor="end">${n}</text>`;
+ $('#conv').setAttribute('viewBox',`0 0 ${W} ${H}`);$('#conv').innerHTML=s}
+function table(){
+ const rr=mean(vals(D.algorithms[0],'sim'));
+ $('#tb').innerHTML=D.algorithms.map((a,i)=>{const v=vals(a,'sim'),m=mean(v),imp=i?`${fmt((1-m/rr)*100,1)}%`:'-';
+  return`<tr><td><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${col(a.name)};margin-right:8px"></i>${a.name}</td><td class="n">${fmt(m,1)} ± ${fmt(std(v),1)}</td><td class="n">${fmt(Math.min(...v),1)}</td><td class="n">${imp}</td><td class="n">${fmt(mean(vals(a,'cost')),3)}</td><td class="n">${fmt(mean(vals(a,'energy')),1)}</td><td class="n">${i?fmt(mean(vals(a,'ms')),0)+' ms':'-'}</td><td class="n">${a.runs.length}</td></tr>`}).join('')}
+
+async function fromFile(f){try{load(JSON.parse(await f.text()))}catch(e){$('#msg').textContent='Gagal membaca berkas: '+e.message}}
+$('#file').onchange=e=>e.target.files[0]&&fromFile(e.target.files[0]);
+const dz=$('#drop');['dragover','dragenter'].forEach(t=>dz.addEventListener(t,e=>{e.preventDefault();dz.classList.add('on')}));
+['dragleave','drop'].forEach(t=>dz.addEventListener(t,e=>{e.preventDefault();dz.classList.remove('on')}));
+dz.addEventListener('drop',e=>e.dataTransfer.files[0]&&fromFile(e.dataTransfer.files[0]));
+fetch('hasil.json').then(r=>r.ok?r.json():Promise.reject()).then(load).catch(()=>{$('#msg').textContent='Belum ada data. Jalankan program Java, lalu pilih hasil.json.'});
+</script></main></body></html>

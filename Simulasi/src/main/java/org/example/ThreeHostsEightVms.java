@@ -23,62 +23,139 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.LongFunction;
 
 /**
- * Simulasi CloudSim Plus: 1 datacenter, 3 host, setiap host berisi 8 VM (total 24 VM).
+ * Simulasi CloudSim Plus: 1 datacenter, 3 host, setiap host berisi 8 VM (total 24 VM),
+ * beban kerja dari dataset GoCJ. Jadwal cloudlet ke VM dibandingkan untuk empat metode:
+ * Round Robin, DSOS, SMO, dan Enhanced SMO. Setiap metode dijalankan pada simulasi baru.
  *
- * Kapasitas host sengaja dibuat pas untuk 8 VM (PE, RAM, bandwidth, storage),
- * sehingga setiap host hanya bisa menampung tepat 8 VM.
+ * Argumen opsional: [0] path dataset GoCJ, [1] jumlah job maksimum, [2] jumlah iterasi algoritma,
+ * [3] jumlah jalan (seed) per algoritma. Hasil disimpan ke hasil/hasil.json untuk halaman visualisasi.
  */
 public class ThreeHostsEightVms {
     // Topologi
     private static final int HOSTS = 3;
     private static final int VMS_PER_HOST = 8;
-    private static final int VMS = HOSTS * VMS_PER_HOST;      // 24
+    private static final int VMS = HOSTS * VMS_PER_HOST;       // 24
 
-    // Spesifikasi satu VM
-    private static final long VM_MIPS = 1000;
+    // VM heterogen: kecepatan bergantian per VM. Ganti menjadi {1000} untuk VM homogen.
+    private static final double[] VM_MIPS_LEVELS = {500, 1000, 1500, 2000};
+    private static final double HOST_PE_MIPS = 2000;           // harus >= MIPS VM tercepat
     private static final int VM_PES = 1;
     private static final long VM_RAM = 2048;                   // MB
     private static final long VM_BW = 1000;                    // Mbps
     private static final long VM_STORAGE = 10_000;             // MB
 
-    // Spesifikasi satu host = 8 x spesifikasi VM
+    // Host dibuat pas untuk 8 VM (PE, RAM, bandwidth, storage)
     private static final int HOST_PES = VMS_PER_HOST * VM_PES;
     private static final long HOST_RAM = VMS_PER_HOST * VM_RAM;
     private static final long HOST_BW = VMS_PER_HOST * VM_BW;
     private static final long HOST_STORAGE = VMS_PER_HOST * VM_STORAGE;
 
-    // Beban kerja: dataset GoCJ (satu baris = panjang satu job dalam MI)
+    // Beban kerja dan algoritma
     private static final String DEFAULT_DATASET = "data/GoCJ_Dataset_100.txt";
     private static final int CLOUDLET_PES = 1;
+    private static final double[] WEIGHTS = {1.0, 0.0, 0.0};   // {makespan, biaya, energi}; contoh multi-objektif: {0.5, 0.3, 0.2}
+    private static final int POPULATION = 50;
+    private static final int DEFAULT_ITERATIONS = 300;
+    private static final int DEFAULT_RUNS = 5;                  // jumlah seed per algoritma
+    private static final long SEED = 42;
+    private static final String OUTPUT_FILE = "hasil/hasil.json";
+    private static final boolean PRINT_CLOUDLET_TABLE = false;
 
-    /** Argumen opsional: [0] path dataset GoCJ, [1] jumlah job maksimum yang dipakai. */
     public static void main(String[] args) {
         final String path = args.length > 0 ? args[0] : DEFAULT_DATASET;
         final int limit = args.length > 1 ? Integer.parseInt(args[1]) : Integer.MAX_VALUE;
-        new ThreeHostsEightVms(path, limit);
+        final int iterations = args.length > 2 ? Integer.parseInt(args[2]) : DEFAULT_ITERATIONS;
+        final int runs = args.length > 3 ? Integer.parseInt(args[3]) : DEFAULT_RUNS;
+
+        final List<Long> lengths = loadJobLengths(path, limit);
+        final double[] mips = vmMips();
+        final double[] lengthArray = lengths.stream().mapToDouble(Long::doubleValue).toArray();
+        final SchedulingProblem problem = new SchedulingProblem(lengthArray, mips, WEIGHTS);
+
+        System.out.printf("Dataset: %s (%d job), %d VM, iterasi: %d, jalan per algoritma: %d%n%n",
+            path, lengths.size(), VMS, iterations, runs);
+
+        final List<Comparison.Series> series = new ArrayList<>();
+        series.add(new Comparison.Series("Round Robin",
+            List.of(simulate(problem, lengths, mips, problem.roundRobin(), 0, new double[0], true))));
+        series.add(runAlgorithm("DSOS", runs, seed -> Dsos.solve(problem, POPULATION, iterations, seed),
+            problem, lengths, mips));
+        series.add(runAlgorithm("SMO", runs, seed -> Smo.solve(problem, POPULATION, iterations, false, seed),
+            problem, lengths, mips));
+        series.add(runAlgorithm("Enhanced SMO", runs, seed -> Smo.solve(problem, POPULATION, iterations, true, seed),
+            problem, lengths, mips));
+
+        Comparison.print(series);
+        Comparison.write(Paths.get(OUTPUT_FILE),
+            Comparison.toJson(path, lengths.size(), VMS, iterations, series));
     }
 
-    private ThreeHostsEightVms(String datasetPath, int limit) {
-        final CloudSim simulation = new CloudSim();
+    /** Menjalankan satu algoritma beberapa kali (seed berbeda); tiap jadwal disimulasikan di CloudSim. */
+    private static Comparison.Series runAlgorithm(String name, int runs, LongFunction<Solution> solver,
+                                                  SchedulingProblem problem, List<Long> lengths, double[] mips) {
+        final List<Comparison.Run> list = new ArrayList<>();
+        for (int k = 0; k < runs; k++) {
+            final long start = System.nanoTime();
+            final Solution solution = solver.apply(SEED + k);
+            list.add(simulate(problem, lengths, mips, solution.assignment(), elapsedMs(start),
+                solution.history(), false));
+        }
+        return new Comparison.Series(name, list);
+    }
 
+    /** Satu simulasi penuh dengan jadwal tertentu: plan[i] = indeks VM untuk cloudlet ke-i. */
+    private static Comparison.Run simulate(SchedulingProblem problem, List<Long> lengths, double[] mips,
+                                           int[] plan, long algorithmMs, double[] history, boolean showHosts) {
+        final CloudSim simulation = new CloudSim();
         final Datacenter datacenter = createDatacenter(simulation);
         final DatacenterBroker broker = new DatacenterBrokerSimple(simulation);
 
-        broker.submitVmList(createVms());
-        final List<Cloudlet> cloudlets = createCloudlets(loadJobLengths(datasetPath, limit));
+        final List<Vm> vms = createVms(mips);
+        final List<Cloudlet> cloudlets = createCloudlets(lengths);
+        for (int i = 0; i < cloudlets.size(); i++) {
+            cloudlets.get(i).setVm(vms.get(plan[i]));          // memasang jadwal hasil algoritma
+        }
+        broker.submitVmList(vms);
         broker.submitCloudletList(cloudlets);
 
         simulation.start();
 
         final List<Cloudlet> finished = broker.getCloudletFinishedList();
-        new CloudletsTableBuilder(finished).build();
-        printSummary(datacenter, finished, cloudlets.size());
+        if (finished.size() != cloudlets.size()) {
+            System.out.printf("PERINGATAN: hanya %d dari %d cloudlet selesai%n", finished.size(), cloudlets.size());
+        }
+        if (PRINT_CLOUDLET_TABLE) {
+            new CloudletsTableBuilder(finished).build();
+        }
+        if (showHosts) {
+            for (Host host : datacenter.getHostList()) {
+                System.out.printf("Host %d: %d VM%n", host.getId(), host.getVmCreatedList().size());
+            }
+            System.out.println();
+        }
+        final double simulated = finished.stream().mapToDouble(Cloudlet::getFinishTime).max().orElse(0);
+        final SchedulingProblem.Metrics m = problem.metrics(plan);
+        return new Comparison.Run(problem.fitness(plan), m.makespan(), simulated, m.cost(), m.energy(),
+            algorithmMs, history);
+    }
+
+    private static long elapsedMs(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000;
+    }
+
+    private static double[] vmMips() {
+        final double[] mips = new double[VMS];
+        for (int i = 0; i < VMS; i++) {
+            mips[i] = VM_MIPS_LEVELS[i % VM_MIPS_LEVELS.length];
+        }
+        return mips;
     }
 
     /** 1 datacenter berisi 3 host. VM dialokasikan dengan VmAllocationPolicySimple (default). */
-    private Datacenter createDatacenter(CloudSim simulation) {
+    private static Datacenter createDatacenter(CloudSim simulation) {
         final List<Host> hosts = new ArrayList<>(HOSTS);
         for (int i = 0; i < HOSTS; i++) {
             hosts.add(createHost());
@@ -86,19 +163,19 @@ public class ThreeHostsEightVms {
         return new DatacenterSimple(simulation, hosts);
     }
 
-    private Host createHost() {
+    private static Host createHost() {
         final List<Pe> pes = new ArrayList<>(HOST_PES);
         for (int i = 0; i < HOST_PES; i++) {
-            pes.add(new PeSimple(VM_MIPS));
+            pes.add(new PeSimple(HOST_PE_MIPS));
         }
         return new HostSimple(HOST_RAM, HOST_BW, HOST_STORAGE, pes);
     }
 
     /** 24 VM: karena kapasitas host pas, hasilnya 8 VM per host. */
-    private List<Vm> createVms() {
+    private static List<Vm> createVms(double[] mips) {
         final List<Vm> list = new ArrayList<>(VMS);
         for (int i = 0; i < VMS; i++) {
-            final Vm vm = new VmSimple(VM_MIPS, VM_PES)
+            final Vm vm = new VmSimple(mips[i], VM_PES)
                 .setRam(VM_RAM).setBw(VM_BW).setSize(VM_STORAGE)
                 .setCloudletScheduler(new CloudletSchedulerSpaceShared());
             list.add(vm);
@@ -106,10 +183,19 @@ public class ThreeHostsEightVms {
         return list;
     }
 
+    /** Satu cloudlet per job di dataset. */
+    private static List<Cloudlet> createCloudlets(List<Long> lengths) {
+        final UtilizationModelFull full = new UtilizationModelFull();
+        final List<Cloudlet> list = new ArrayList<>(lengths.size());
+        for (long length : lengths) {
+            list.add(new CloudletSimple(length, CLOUDLET_PES, full));
+        }
+        return list;
+    }
+
     /**
      * Membaca panjang job (MI) dari file GoCJ. Yang dibaca adalah kolom pertama tiap baris,
-     * baris kosong dan baris header (bukan angka) dilewati. Format enhanced GoCJ
-     * (panjang, SLA, waktu kedatangan) juga terbaca, tetapi hanya kolom pertama yang dipakai.
+     * baris kosong dan baris header (bukan angka) dilewati.
      */
     private static List<Long> loadJobLengths(String file, int limit) {
         final Path path = Paths.get(file);
@@ -136,27 +222,5 @@ public class ThreeHostsEightVms {
             throw new IllegalStateException("Dataset kosong: " + path.toAbsolutePath());
         }
         return lengths;
-    }
-
-    /** Satu cloudlet per job di dataset. */
-    private List<Cloudlet> createCloudlets(List<Long> lengths) {
-        final UtilizationModelFull full = new UtilizationModelFull();
-        final List<Cloudlet> list = new ArrayList<>(lengths.size());
-        for (long length : lengths) {
-            list.add(new CloudletSimple(length, CLOUDLET_PES, full));
-        }
-        return list;
-    }
-
-    private void printSummary(Datacenter datacenter, List<Cloudlet> finished, int total) {
-        System.out.println();
-        System.out.println("=== Ringkasan ===");
-        System.out.printf("Datacenter: 1, host: %d, VM total: %d%n", datacenter.getHostList().size(), VMS);
-        for (Host host : datacenter.getHostList()) {
-            System.out.printf("Host %d: %d VM%n", host.getId(), host.getVmCreatedList().size());
-        }
-        final double makespan = finished.stream().mapToDouble(Cloudlet::getFinishTime).max().orElse(0);
-        System.out.printf("Cloudlet selesai: %d dari %d%n", finished.size(), total);
-        System.out.printf("Makespan: %.2f detik%n", makespan);
     }
 }

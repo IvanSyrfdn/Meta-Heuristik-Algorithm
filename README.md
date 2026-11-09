@@ -93,12 +93,16 @@ Kapasitas host dibuat pas untuk 8 VM, sehingga setiap host menampung tepat 8 VM.
 ├── pom.xml
 ├── data/
 │   └── GoCJ_Dataset_100.txt              # dataset (lihat bagian Dataset)
+├── hasil/
+│   ├── hasil.json                        # dibuat otomatis oleh program (data perbandingan)
+│   └── perbandingan.html                 # halaman visualisasi perbandingan
 └── src/main/
     ├── java/org/example/
     │   ├── ThreeHostsEightVms.java       # program utama: topologi CloudSim, empat skenario, tabel hasil
     │   ├── SchedulingProblem.java        # model masalah: makespan, biaya, energi, fitness
     │   ├── Dsos.java                     # algoritma DSOS
     │   ├── Smo.java                      # algoritma SMO dan Enhanced SMO
+    │   ├── Comparison.java               # tabel perbandingan di konsol dan berkas hasil.json
     │   └── Solution.java                 # hasil algoritma: jadwal, fitness, riwayat konvergensi
     └── resources/
         └── logback.xml                   # level log (hanya WARN)
@@ -136,11 +140,12 @@ Argumen program (dalam `-Dexec.args`, dipisah spasi), semuanya opsional:
 | 1 | Path dataset GoCJ | `data/GoCJ_Dataset_100.txt` |
 | 2 | Jumlah job maksimum yang dipakai | semua job di file |
 | 3 | Jumlah iterasi algoritma | 300 |
+| 4 | Jumlah jalan (seed berbeda) per algoritma | 5 |
 
-Contoh memakai 100 job dan 500 iterasi:
+Contoh memakai 100 job, 500 iterasi, dan 10 jalan per algoritma:
 
 ```
-mvn -q clean compile exec:java "-Dexec.mainClass=org.example.ThreeHostsEightVms" "-Dexec.args=data/GoCJ_Dataset_100.txt 100 500"
+mvn -q clean compile exec:java "-Dexec.mainClass=org.example.ThreeHostsEightVms" "-Dexec.args=data/GoCJ_Dataset_100.txt 100 500 10"
 ```
 
 Pada PowerShell, tanda kutip di sekitar opsi `-D` wajib ada.
@@ -150,13 +155,22 @@ Pada PowerShell, tanda kutip di sekitar opsi `-D` wajib ada.
 Program mencetak jumlah VM per host (untuk membuktikan 8 VM per host), lalu tabel perbandingan dengan kolom:
 
 - **Fitness**: nilai fitness jadwal, dinormalisasi terhadap Round Robin (1,0 = sama dengan Round Robin, makin kecil makin baik).
-- **Makespan est.**: makespan hasil hitungan algoritma.
-- **Makespan sim.**: makespan hasil simulasi CloudSim (termasuk jeda pengiriman broker sekitar 0,1 detik).
+- **Makespan sim.**: makespan hasil simulasi CloudSim (termasuk jeda pengiriman broker sekitar 0,1 detik), rata-rata dan simpangan baku dari semua jalan.
+- **Terbaik**: makespan terkecil di antara semua jalan.
 - **Biaya** dan **Energi**: perkiraan dari model sederhana (lihat bagian Model fitness).
 - **Waktu algo**: lama algoritma menghitung jadwal, dalam milidetik.
-- **vs RR**: persentase penurunan makespan simulasi dibanding Round Robin.
+- **vs RR**: persentase penurunan makespan rata-rata dibanding Round Robin.
 
-Angka akan berbeda tergantung dataset, jumlah iterasi, dan seed.
+Round Robin deterministik, jadi hanya dijalankan sekali. DSOS, SMO, dan Enhanced SMO dijalankan beberapa kali dengan seed berbeda karena hasilnya acak. Angka akan berbeda tergantung dataset, jumlah iterasi, dan seed.
+
+## Visualisasi perbandingan
+
+Setelah program selesai, hasilnya disimpan ke `hasil/hasil.json`. Untuk melihat grafiknya:
+
+1. Buka `hasil/perbandingan.html` di browser.
+2. Pilih berkas `hasil/hasil.json` (atau tarik berkasnya ke halaman).
+
+Halaman menampilkan diagram batang per metrik (makespan, biaya, energi, waktu algoritma) lengkap dengan rentang minimum sampai maksimum antar jalan, grafik konvergensi fitness per iterasi, dan tabel ringkasan. Kalau halaman dibuka lewat server (misalnya GitHub Pages atau `python -m http.server` dari folder `hasil`), `hasil.json` yang berada di folder yang sama dimuat otomatis.
 
 ## Konfigurasi
 
