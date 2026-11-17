@@ -95,7 +95,13 @@ Kapasitas host dibuat pas untuk 8 VM, sehingga setiap host menampung tepat 8 VM.
 │   └── GoCJ_Dataset_100.txt              # dataset (lihat bagian Dataset)
 ├── hasil/
 │   ├── hasil.json                        # dibuat otomatis oleh program (data perbandingan)
-│   └── perbandingan.html                 # halaman visualisasi perbandingan
+│   ├── perbandingan.html                 # halaman visualisasi perbandingan
+│   ├── ss-topologi.png                   # screenshot alokasi VM ke host
+│   ├── ss-tabel.png                      # screenshot tabel perbandingan
+│   ├── ss-makespan.png                   # screenshot diagram makespan
+│   ├── ss-biaya.png                      # screenshot diagram biaya
+│   ├── ss-energi.png                     # screenshot diagram energi
+│   └── ss-konvergensi.png                # screenshot grafik konvergensi
 └── src/main/
     ├── java/org/example/
     │   ├── ThreeHostsEightVms.java       # program utama: topologi CloudSim, empat skenario, tabel hasil
@@ -215,6 +221,111 @@ Fitness = `w0 × makespan + w1 × biaya + w2 × energi`, masing-masing dibagi ni
 - Paper DSOS membahas Travelling Salesman Problem, bukan penjadwalan cloud. Di sini ide yang sama dipakai untuk urutan cloudlet.
 - Data GoCJ dan model biaya serta energi bersifat sintetis atau disederhanakan, jadi angka di sini tidak dimaksudkan menyamai angka di paper.
 
+# Laporan Hasil Eksperimen
+
+## Ringkasan
+
+Eksperimen ini membandingkan tiga algoritma metaheuristik, yaitu **DSOS**, **SMO**, dan **Enhanced SMO**, dengan **Round Robin** sebagai pembanding. Simulasi dijalankan di CloudSim Plus 7.3.2 dengan dataset GoCJ (100 job) pada 24 VM heterogen (topologi dan model fitness: lihat bagian "Topologi simulasi" dan "Model fitness" di atas).
+
+Temuan utama:
+
+- Ketiga algoritma metaheuristik menurunkan makespan secara signifikan dibanding Round Robin (**59,2% sampai 74,7%**).
+- **DSOS** memberi hasil terbaik dan paling stabil: makespan rata-rata **461,0 detik**, turun **74,7%** dari Round Robin, dengan simpangan baku hanya **1,9 detik**.
+- **Enhanced SMO tidak lebih baik dari SMO standar** pada konfigurasi ini (743,4 vs 692,3 detik). Kemungkinan penyebabnya dibahas pada bagian Analisis.
+
+## Parameter eksperimen
+
+| Parameter | Nilai |
+|---|---|
+| Dataset | `GoCJ_Dataset_100.txt` (100 job) |
+| Bobot fitness (`WEIGHTS`) | `{1, 0, 0}` (hanya makespan dioptimasi; biaya dan energi tetap dihitung dan dilaporkan) |
+| Ukuran populasi | 50 |
+| Jumlah iterasi | 300 |
+| Jumlah jalan per algoritma (seed berbeda) | 5 |
+| Round Robin | 1 jalan (deterministik) |
+| SMO: local limit | 20 |
+
+## Verifikasi topologi
+
+Log awal simulasi membuktikan 24 VM terbagi merata ke 3 host, masing-masing 8 VM.
+
+<img width="886" height="708" alt="image" src="https://github.com/user-attachments/assets/779ec0f4-bcdc-40c2-a3dd-65916c617cc3" />
+
+*Gambar 1. Log alokasi VM. VM 0 sampai 23 terbagi bergantian ke Host 0, 1, dan 2.*
+
+## Hasil
+
+### Tabel perbandingan
+
+| Metode | Jalan | Makespan sim. (s) | Terbaik (s) | Biaya ($) | Energi (Wh) | Waktu algo | vs RR |
+|---|---|---|---|---|---|---|---|
+| Round Robin | 1 | 1823,4 ± 0,0 | 1823,4 | 0,404 | 1336,2 | 0 ms | 0,0% |
+| **DSOS** | 5 | **461,0 ± 1,9** | **458,6** | 0,427 | **599,9** | 606 ms | **74,7%** |
+| SMO | 5 | 692,3 ± 20,9 | 656,0 | 0,429 | 704,7 | 118 ms | 62,0% |
+| Enhanced SMO | 5 | 743,4 ± 40,3 | 712,8 | 0,423 | 750,0 | 114 ms | 59,2% |
+
+*Makespan sim. adalah hasil CloudSim, termasuk jeda pengiriman broker sekitar 0,1 detik. Nilai adalah rata-rata ± simpangan baku dari seluruh jalan.*
+
+<img width="904" height="367" alt="image" src="https://github.com/user-attachments/assets/71758efd-337e-4189-82d4-c93ec53080e8" />
+
+*Gambar 2. Tabel perbandingan dari `perbandingan.html`.*
+
+### Visualisasi
+
+<img width="1491" height="771" alt="image" src="https://github.com/user-attachments/assets/fa2e02c5-2240-456d-8612-deeffde033c5" />
+
+*Gambar 3. Makespan rata-rata per metode. Garis tipis menunjukkan nilai terkecil sampai terbesar antar jalan.*
+
+<img width="738" height="383" alt="image" src="https://github.com/user-attachments/assets/b688624c-c667-43ae-880e-2f34b7792300" />
+
+*Gambar 4. Biaya per metode.*
+
+<img width="737" height="385" alt="image" src="https://github.com/user-attachments/assets/e93e3ddf-0604-4d63-b368-e8541ceab518" />
+
+*Gambar 5. Energi per metode.*
+
+<img width="1465" height="661" alt="image" src="https://github.com/user-attachments/assets/430e4063-4a8e-48e1-a471-fd55dc9832ac" />
+
+*Gambar 6. Konvergensi fitness per iterasi (rata-rata semua jalan). Hijau: DSOS, kuning: SMO, ungu: Enhanced SMO, garis putus-putus merah: Round Robin (1,0). Makin kecil makin baik.*
+
+Grafik konvergensi menunjukkan perbedaan perilaku yang jelas. DSOS mulai dari fitness yang sudah rendah (sekitar 0,30), turun ke sekitar 0,26 dalam beberapa iterasi pertama, lalu praktis datar sampai iterasi ke-300, sehingga DSOS konvergen sangat cepat. SMO dan Enhanced SMO mulai dari fitness sekitar 0,57 dan turun bertahap. Keduanya mirip di awal, tetapi Enhanced SMO tertahan di plateau sekitar 0,47 pada kira-kira iterasi 50 sampai 130, sementara SMO terus turun dan berakhir di sekitar 0,39 (Enhanced SMO sekitar 0,41). Nilai akhir ini konsisten dengan makespan di tabel. Kedua varian SMO masih menurun pelan di iterasi ke-300, artinya belum sepenuhnya konvergen. Menambah iterasi (misalnya 500 atau 1000) kemungkinan mempersempit selisih dengan DSOS, tetapi ini perlu dibuktikan lewat run lanjutan.
+
+### Perbandingan terhadap Round Robin
+
+| Metode | Makespan | Energi | Biaya |
+|---|---|---|---|
+| DSOS | −74,7% | −55,1% | +5,7% |
+| SMO | −62,0% | −47,3% | +6,2% |
+| Enhanced SMO | −59,2% | −43,9% | +4,7% |
+
+## Analisis
+
+**DSOS paling unggul dan paling stabil.** Makespan rata-rata DSOS (461,0 s) jauh di bawah SMO (692,3 s) dan Enhanced SMO (743,4 s). Simpangan bakunya hanya 1,9 s, sedangkan SMO 20,9 s dan Enhanced SMO 40,3 s. Artinya DSOS hampir selalu menemukan solusi dengan kualitas sama di seed berbeda, sedangkan hasil SMO lebih bergantung pada seed. Salah satu penjelasan yang masuk akal adalah representasi permutasi pada DSOS dengan dekoder "taruh task ke VM yang selesai paling awal", yang sudah membawa heuristik penyeimbang beban. Representasi SMO (vektor bernilai kontinu yang dibulatkan) lebih lemah dalam hal ini, walaupun ini hipotesis yang belum diuji secara terpisah.
+
+**Waktu komputasi DSOS lebih lama.** DSOS butuh sekitar 606 ms, sekitar 5 kali lipat SMO (118 ms) dan Enhanced SMO (114 ms), tetapi untuk 100 job selisih ini masih tidak signifikan dibanding penurunan makespan yang didapat.
+
+**Enhanced SMO tidak lebih baik dari SMO standar.** Pada konfigurasi ini Enhanced SMO lebih lambat sekitar 51 detik dan lebih tidak stabil. Beberapa kemungkinan penyebabnya:
+
+1. Bobot `{1, 0, 0}` hanya menilai makespan, padahal paper SMO mengevaluasi fitness multi-objektif.
+2. Pseudocode paper tidak lengkap, sehingga suku SUM dan SN pada Pers. 30 diartikan sendiri.
+3. Hanya 5 jalan dan 300 iterasi, jumlah yang kecil untuk menarik kesimpulan tegas. Grafik konvergensi juga menunjukkan kedua varian SMO belum datar di iterasi ke-300.
+
+**Trade-off biaya.** Biaya semua metaheuristik sedikit di atas Round Robin (naik 4,7% sampai 6,2%) walaupun makespan dan energi turun drastis. Ini wajar karena yang dioptimasi hanya makespan: task panjang diarahkan ke VM cepat yang harganya naik lebih cepat daripada kecepatannya. Untuk menekan biaya, bobot `w1` perlu dinaikkan.
+
+**Energi turun jauh.** Energi turun 43,9% sampai 55,1% karena VM tidak lama menganggur menunggu VM lain selesai.
+
+## Keterbatasan eksperimen
+
+- Hanya satu dataset dan satu ukuran (100 job). Skalabilitas ke ratusan atau ribuan job belum diuji.
+- Hanya 5 jalan per algoritma dan belum ada uji signifikansi statistik (misalnya Wilcoxon).
+- Pembandingnya hanya Round Robin, yang merupakan baseline lemah. Belum ada pembanding seperti Min-Min, Max-Min, MCT, GA, atau PSO.
+- Iterasi, bukan jumlah evaluasi fitness, yang disamakan antar algoritma, sehingga perbandingan belum sepenuhnya adil dari sisi budget komputasi.
+- Skenario multi-objektif (`WEIGHTS = {0.5, 0.3, 0.2}`) dan iterasi lebih banyak belum dijalankan.
+- Model biaya dan energi disederhanakan dan sintetis, sehingga angkanya tidak dimaksudkan menyamai angka di paper.
+
+## Kesimpulan
+
+Pada skenario 100 job dengan 24 VM heterogen, DSOS menghasilkan jadwal terbaik: makespan turun 74,7% dibanding Round Robin dengan variasi antar-seed sangat kecil. SMO dan Enhanced SMO juga jauh lebih baik dari Round Robin (62,0% dan 59,2%) tetapi kurang stabil, dan perbaikan Enhanced SMO belum terlihat pada konfigurasi bobot makespan-saja. Eksperimen lanjutan yang disarankan: skenario multi-objektif, iterasi lebih banyak, dataset lebih besar, lebih banyak seed dengan uji statistik, dan pembanding algoritma yang lebih kuat.
 
 ## Referensi
 
